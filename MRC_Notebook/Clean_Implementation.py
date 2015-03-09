@@ -166,15 +166,21 @@ for k in arange(n_trials):
     #nt = nt + w - t
     #np = np + g.degree(y) - g.degree(x) + 1 
     nt, np = nt_np(g)
-#     A = nx.adjacency_matrix(g).todense()
-#     A2 = A**2 #To be accelerated by A2(new) = A2(old) + AN + NA + N**2 where N is A(new)-A(old)
-    Anew = nx.adjacency_matrix(g).todense()
-    N = Anew-A
-    A2 = A2 + Anew*N + N*Anew + N**2
+    A = nx.adjacency_matrix(g).todense()
+    A2 = A**2 
+
+### This is a purported speedup that causes the algorithm to break for some reason
+#     Anew = nx.adjacency_matrix(g).todense()
+#     N = Anew-A
+#     A2 = A2 + Anew*N + N*Anew + N**2
+#     A = Anew
+
+### Or maybe something like this?
 #     N = zeros(shape(A))
 #     N[hinge,x] = N[x, hinge] = 1
 #     N[hinge,y] = N[y, hinge] = -1
 #     A2 = A2 + AN + NA + N**2
+
     mean_k.append(mean(list(g.degree().values())))
     Cs.append(nt/np)
     pl.append(nx.average_shortest_path_length(g))
@@ -188,19 +194,6 @@ rewired_graph = g.copy()
 
 # Measure the graph's properties during rewiring
 # ====
-
-# <codecell>
-
-Cs = array(Cs)
-C_locals = array(C_locals)
-
-plot(arange(k+1)/k,Cs/Cs[0], color='b', label="Clustering")
-ylabel("Total Clustering", color='b')
-twinx()
-plot(arange(k+1)/k, C_locals/C_locals[0], color='r', label="Clustering Local")
-ylabel("Average Local Clustering", color='r')
-title("Clustering Goes Up, With Two Definitions")
-xlabel("Percent of Rewirings")
 
 # <codecell>
 
