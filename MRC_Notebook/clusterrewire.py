@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
-# <nbformat>3.0</nbformat>
 
-# <codecell>
+# coding: utf-8
+
+# In[118]:
 
 from pylab import *
 
-def one_move_find_best(A, A2, fixed):
+def one_move_find_best(A, A2, fixed, preserve_degrees=False):
     most_wedges_order = argsort(A2.ravel())[::-1]
     doorways = array(unravel_index(most_wedges_order, shape(A2)))
     for doorway_index in range(doorways.shape[1]):
@@ -14,18 +14,20 @@ def one_move_find_best(A, A2, fixed):
             continue
         if doorway[0]==doorway[1]: #The proposed target is a self link
             continue
-        door = find_door(A, doorway, A2, fixed)
+        door = find_door(A, doorway, A2, fixed, preserve_degrees)
         if door:
             hinge, target, latch = door
             A, fixed = swing_door(A, hinge, target, latch, fixed)
             return A, hinge, target, latch
     return None
     
-def find_door(A, sides_of_doorway, A2, fixed):
+def find_door(A, sides_of_doorway, A2, 
+              fixed, preserve_degrees=False):
     
     wedges_across_doorway = A2[sides_of_doorway]    
     
-    def find_door_helper(hinge, latch, A, A2, fixed, wedges_across_doorway):
+    def find_door_helper(hinge, latch, A, A2, 
+                         fixed, wedges_across_doorway, preserve_degrees):
         latch_degree = A[latch].sum()
         neighbors_of_hinge = A[hinge].astype('bool')
         neighbors_degrees = A.sum(axis=1)
@@ -33,17 +35,22 @@ def find_door(A, sides_of_doorway, A2, fixed):
         candidate_doors_not_fixed = ~fixed[hinge]
         candidate_doors = (neighbors_of_hinge * 
                            (wedges_across_doorway > wedges_across_candidate_doors) *
-                           (neighbors_degrees > latch_degree) * 
                            candidate_doors_not_fixed
                            )
+        if preserve_degrees:
+            candidate_doors *= (neighbors_degrees == latch_degree + 1) #The node we're taking the link from has exactly one higher degree than the node we're giving the link to)
+        else:
+            candidate_doors *= (neighbors_degrees > latch_degree)
         if any(candidate_doors):
             best_door_for_this_hinge = ma.masked_array(A2[hinge], mask=~candidate_doors.astype('bool')).argmin()
             return best_door_for_this_hinge
         else:
             return None
 
-    best_doors = [find_door_helper(sides_of_doorway[0], sides_of_doorway[1], A, A2, fixed, wedges_across_doorway),
-                  find_door_helper(sides_of_doorway[1], sides_of_doorway[0], A, A2, fixed, wedges_across_doorway)]
+    best_doors = [find_door_helper(sides_of_doorway[0], sides_of_doorway[1], A, A2, 
+                                   fixed, wedges_across_doorway, preserve_degrees),
+                  find_door_helper(sides_of_doorway[1], sides_of_doorway[0], A, A2, 
+                                   fixed, wedges_across_doorway, preserve_degrees)]
     if best_doors[0] is None and best_doors[1] is None:
         return None
     elif best_doors[0] is None:
@@ -72,7 +79,7 @@ def swing_door(A, hinge, target_neighbor, latch, fixed):
     return A, fixed
 
 
-def one_move_improve_worst(A, A2, fixed):
+def one_move_improve_worst(A, A2, fixed, preserve_degrees=False):
     most_wedges_order = argsort(A2.ravel()) ##Sorted from least to most
     doors = array(unravel_index(most_wedges_order, shape(A2)))
     for door_index in range(doors.shape[1]):
@@ -84,26 +91,32 @@ def one_move_improve_worst(A, A2, fixed):
         if door[0]==door[1]: #The proposed target is a self link
             continue
 
-        doorway = find_doorway(A, door, A2, fixed)
+        doorway = find_doorway(A, door, A2, fixed, preserve_degrees)
         if doorway:
             hinge, door_stop, latch = doorway
             A, fixed = swing_door(A, hinge, door_stop, latch, fixed)
             return A, hinge, door_stop, latch
     return None
 
-def find_doorway(A, sides_of_door, A2, fixed):
+def find_doorway(A, sides_of_door, A2, 
+                 fixed, preserve_degrees=False):
     
     wedges_across_door = A2[sides_of_door]    
     
-    def find_doorway_helper(hinge, edge_of_door, A, A2, fixed, wedges_across_door):
+    def find_doorway_helper(hinge, edge_of_door, A, A2, 
+                            fixed, wedges_across_door, preserve_degrees):
         edge_of_door_degree = A[edge_of_door].sum()
         neighbors_of_hinge = A[hinge].astype('bool')
         neighbors_degrees = A.sum(axis=1)
         wedges_across_candidate_doorways = A2[hinge]        
         candidate_doorways = (~neighbors_of_hinge * 
-                           (wedges_across_door < wedges_across_candidate_doorways) *
-                           (neighbors_degrees < edge_of_door_degree)
+                           (wedges_across_door < wedges_across_candidate_doorways)
                            )
+        if preserve_degrees:
+            candidate_doorways *= (neighbors_degrees + 1 == edge_of_door_degree)  #The node we're taking the link from has exactly one higher degree than the node we're giving the link to)
+        else:
+            candidate_doorways *= (neighbors_degrees < edge_of_door_degree)
+            
         candidate_doorways[hinge] = False #Can't connect to itself!
         if any(candidate_doorways):
             best_doorway_for_this_hinge = ma.masked_array(A2[hinge], mask=~candidate_doorways.astype('bool')).argmax()
@@ -111,8 +124,10 @@ def find_doorway(A, sides_of_door, A2, fixed):
         else:
             return None
 
-    best_doorways = [find_doorway_helper(sides_of_door[0], sides_of_door[1], A, A2, fixed, wedges_across_door),
-                  find_doorway_helper(sides_of_door[1], sides_of_door[0], A, A2, fixed, wedges_across_door)]
+    best_doorways = [find_doorway_helper(sides_of_door[0], sides_of_door[1], A, A2, 
+                                         fixed, wedges_across_door, preserve_degrees),
+                     find_doorway_helper(sides_of_door[1], sides_of_door[0], A, A2, 
+                                         fixed, wedges_across_door, preserve_degrees)]
     if best_doorways[0] is None and best_doorways[1] is None:
         return None
     elif best_doorways[0] is None:
@@ -154,7 +169,7 @@ def move_edge_A2(A2, A, hinge, doorstop, latch):
 
 def number_of_triangles(A, A2):
     from networkx import triangles, Graph
-    return sum(list(triangles(Graph(g)).values()))/3
+    return sum(list(triangles(Graph(A)).values()))/3
 
 def number_of_possible_triangles(A, A2):
     import networkx as nx
@@ -164,10 +179,10 @@ def number_of_possible_triangles(A, A2):
     return float(contri)/2.0
 
 def number_of_triangles_update(nt, A, A2, hinge, doorstop, latch):
-    return nt + A2[hinge, latch] - A2[hinge,doorstop]
+    return nt + A2[hinge, latch] - A2[hinge,doorstop] #This isn't working for some reason and I don't know why
 
 def number_of_possible_triangles_update(np, A, A2, hinge, doorstop, latch):
-    return np + sum(A[latch])-sum(A[doorstop]) + 1
+    return np + sum(A[latch]) - (sum(A[doorstop]) - 1) #This isn't working for some reason and I don't know why
     
     
 def cluster_rewire_graph(A, 
@@ -176,8 +191,8 @@ def cluster_rewire_graph(A,
                  rewire_function = one_move_find_best,
                  verbose = True,
                  verbose_count = 10,
-                 property_functions = [number_of_triangles, 
-                                       number_of_possible_triangles]):
+                 property_functions = [number_of_triangles, number_of_possible_triangles],
+                 preserve_degrees = False):
     
     A2 = array(matrix(A)**2)
     A = array(A)
@@ -204,7 +219,7 @@ def cluster_rewire_graph(A,
             if verbose:
                 print("Rewiring %i out of %i"%(k,n_trials))
 
-        outputs = rewire_function(A, A2, fixed)
+        outputs = rewire_function(A, A2, fixed, preserve_degrees)
         if not outputs:
             if verbose:
                 print("Couldn't make a move!")
@@ -217,17 +232,14 @@ def cluster_rewire_graph(A,
             for nth_property in range(n_properties):
                 prop_fun = property_functions[nth_property]
                 if callable(prop_fun):
-                    updated_property = prop_fun(A,A2)
+                    updated_property = prop_fun(A, A2)
                 else:
                     prop_fun = prop_fun[1]
                     previous_property = properties[nth_property][-1]
-                    updated_property = property_update_functions[nth_property](previous_property,
-                                                                              A,
-                                                                              A2,
-                                                                              hinge,
-                                                                              doorstop,
-                                                                              latch)
+                    updated_property = prop_fun(previous_property, A, A2, hinge, doorstop, latch)
                 properties[nth_property].append(updated_property)   
+        A = A_new
+        A2 = A2_new
     
     if verbose:
         print("Rewired %.1f percent of edges"%(100*float(k)/n_trials))
@@ -236,7 +248,8 @@ def cluster_rewire_graph(A,
     else:
         return A
 
-# <codecell>
+
+# In[119]:
 
 def nt_np(G):
     triangles=0 # 6 times number of triangles
