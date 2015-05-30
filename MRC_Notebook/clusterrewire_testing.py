@@ -4,14 +4,14 @@
 # Setup
 # ====
 
-# In[22]:
+# In[1]:
 
 import seaborn
 import pandas as pd
 get_ipython().magic('pylab inline')
 
 
-# In[23]:
+# In[2]:
 
 import clusterrewire as cr
 from clusterrewire import cluster_rewire_graph
@@ -21,9 +21,9 @@ import networkx as nx
 # Create the initial graph
 # ===
 
-# In[34]:
+# In[6]:
 
-n_nodes = 100
+n_nodes = 500
 p = 1.5*log(n_nodes)/n_nodes
 g = nx.erdos_renyi_graph(n=n_nodes, p=p)
 
@@ -46,10 +46,24 @@ print("Average degree: %.2f"%mean(list(g.degree().values())))
 
 # In[7]:
 
-g = original_graph.copy()
-A = nx.adjacency_matrix(g).todense()
-find_best_A, (triangles_completed, triangles_possible) = cluster_rewire_graph(A, rewire_function=cr.one_move_find_best)
-find_best_clustering = array(triangles_completed)/array(triangles_possible)
+get_ipython().run_cell_magic('time', '', 'g = original_graph.copy()\nA = nx.adjacency_matrix(g).todense()\nfind_best_A, (triangles_completed, triangles_possible) = cluster_rewire_graph(A, rewire_function=cr.one_move_find_best)\nfind_best_clustering = array(triangles_completed)/array(triangles_possible)')
+
+
+# In[5]:
+
+plot(find_best_clustering)
+min(diff(find_best_clustering))
+
+
+# In[5]:
+
+plot(find_best_clustering)
+min(diff(find_best_clustering))
+
+
+# In[6]:
+
+get_ipython().run_cell_magic('time', '', 'g = original_graph.copy()\nA = nx.adjacency_matrix(g).todense()\nfind_best_A = cluster_rewire_graph(A, rewire_function=cr.one_move_find_best,\n                                                                             property_functions=None)')
 
 
 # In[5]:
@@ -79,7 +93,7 @@ xlabel("Node Degree")
 legend(loc=1)
 
 
-# In[ ]:
+# In[7]:
 
 g = original_graph.copy()
 A = nx.adjacency_matrix(g).todense()
@@ -132,22 +146,66 @@ xlabel("Node Degree")
 legend(loc=1)
 
 
-# In[25]:
+# In[12]:
 
-# g = original_graph.copy()
-# A = nx.adjacency_matrix(g).todense()
-# find_best_A, (triangles_completed, triangles_possible) = cluster_rewire_graph(A, rewire_function=cr.one_move_find_best)
-# find_best_clustering = array(triangles_completed)/array(triangles_possible)
-# g = original_graph.copy()
-# A = nx.adjacency_matrix(g).todense()
-# find_best_A, (triangles_completed_test, triangles_possible_test) = cluster_rewire_graph(A, rewire_function=cr.one_move_find_best,
-#                                                                                         property_functions = [cr.number_of_triangles,cr.number_of_possible_triangles])
-# scatter(diff(triangles_completed),diff(triangles_completed_test))
-# plot((0,7),(0,7))
-# ylabel("True")
-# xlabel("My Code")
-# scatter(diff(triangles_possible),diff(triangles_possible_test))
-# ylabel("True")
-# xlabel("My Code")
-# plot(triangles_possible,triangles_possible_test)
+g = original_graph.copy()
+A = nx.adjacency_matrix(g).todense()
+find_best_A, (triangles_completed, triangles_possible) = cluster_rewire_graph(A, rewire_function=cr.one_move_find_best)
+find_best_clustering = array(triangles_completed)/array(triangles_possible)
+
+
+# In[13]:
+
+plot(array(triangles_completed)/array(triangles_possible))
+min(diff(array(triangles_completed)/array(triangles_possible)))
+
+
+# In[28]:
+
+def number_of_triangles_update(nt, A, A2, hinge, doorstop, latch):
+    #return nt + A2[hinge, latch] - A2[hinge,doorstop] #This isn't working for some reason and I don't know why
+#     return nt + A2[hinge, latch] - A2[hinge,doorstop] + A[latch, doorstop]
+    return nt + A2[hinge, latch] - A2[hinge,doorstop] + A[latch, doorstop]
+
+def number_of_possible_triangles_update(np, A, A2, hinge, doorstop, latch):
+#     return np + sum(A[latch]) - sum(A[doorstop]) -1 #This isn't working for some reason and I don't know why
+    return np + (sum(A[latch])-1) - sum(A[doorstop])#This isn't working for some reason and I don't know why
+
+g = original_graph.copy()
+A = nx.adjacency_matrix(g).todense()
+find_best_A, (triangles_completed_test, triangles_possible_test) = cluster_rewire_graph(A, rewire_function=cr.one_move_find_best,
+                                                                                        property_functions = [(cr.number_of_triangles, 
+                                                                                                               number_of_triangles_update),
+                                                                                                               (cr.number_of_possible_triangles,
+                                                                                                                number_of_possible_triangles_update)])
+
+
+# In[29]:
+
+plot(array(triangles_completed_test)/array(triangles_possible_test))
+min(diff(array(triangles_completed_test)/array(triangles_possible_test)))
+
+
+# In[30]:
+
+scatter(diff(triangles_completed),diff(triangles_completed_test))
+plot((0,7),(0,7))
+ylabel("True")
+xlabel("My Code")
+figure()
+scatter(diff(triangles_possible),diff(triangles_possible_test))
+ylabel("True")
+xlabel("My Code")
+plot((-2,4),(-2,4))
+#plot(triangles_possible,triangles_possible_test)
+
+
+# In[20]:
+
+get_ipython().run_cell_magic('time', '', 'g = original_graph.copy()\nA = nx.adjacency_matrix(g).todense()\nfind_best_A, (triangles_completed_test, triangles_possible_test) = cluster_rewire_graph(A, rewire_function=cr.one_move_find_best,\n                                                                                        property_functions = [(cr.number_of_triangles, \n                                                                                                               number_of_triangles_update),\n                                                                                                               (cr.number_of_possible_triangles,\n                                                                                                                number_of_possible_triangles_update)])')
+
+
+# In[21]:
+
+get_ipython().run_cell_magic('time', '', 'g = original_graph.copy()\nA = nx.adjacency_matrix(g).todense()\nfind_best_A, (triangles_completed, triangles_possible) = cluster_rewire_graph(A, rewire_function=cr.one_move_find_best)')
 

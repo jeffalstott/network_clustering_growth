@@ -8,12 +8,17 @@ from pylab import *
 def one_move_find_best(A, A2, fixed, preserve_degrees=False):
     most_wedges_order = argsort(A2.ravel())[::-1]
     doorways = array(unravel_index(most_wedges_order, shape(A2)))
+    
+    already_edges = A[doorways[0], doorways[1]].astype('bool')
+    self_links = doorways[0]==doorways[1]
+    doorways = doorways[:,(~self_links * ~already_edges)]
+    
     for doorway_index in range(doorways.shape[1]):
         doorway = tuple(doorways[:,doorway_index])
-        if A[doorway]: #There's already an edge there
-            continue
-        if doorway[0]==doorway[1]: #The proposed target is a self link
-            continue
+#         if A[doorway]: #There's already an edge there
+#             continue
+#         if doorway[0]==doorway[1]: #The proposed target is a self link
+#             continue
         door = find_door(A, doorway, A2, fixed, preserve_degrees)
         if door:
             hinge, target, latch = door
@@ -82,14 +87,20 @@ def swing_door(A, hinge, target_neighbor, latch, fixed):
 def one_move_improve_worst(A, A2, fixed, preserve_degrees=False):
     most_wedges_order = argsort(A2.ravel()) ##Sorted from least to most
     doors = array(unravel_index(most_wedges_order, shape(A2)))
+    
+    not_has_edge = ~A[doors[0], doors[1]].astype('bool')
+    self_links = doors[0]==doors[1]
+    already_fixed = fixed[doors[0], doors[1]].astype('bool')
+    doors = doors[:,(~self_links * ~not_has_edge * ~already_fixed)]
+
     for door_index in range(doors.shape[1]):
         door = tuple(doors[:,door_index])
-        if not A[door]: #There's not an edge there
-            continue
-        if fixed[door]: #If the edge there has already been moved
-            continue
-        if door[0]==door[1]: #The proposed target is a self link
-            continue
+#         if not A[door]: #There's not an edge there
+#             continue
+#         if fixed[door]: #If the edge there has already been moved
+#             continue
+#         if door[0]==door[1]: #The proposed target is a self link
+#             continue
 
         doorway = find_doorway(A, door, A2, fixed, preserve_degrees)
         if doorway:
@@ -179,11 +190,10 @@ def number_of_possible_triangles(A, A2):
     return float(contri)/2.0
 
 def number_of_triangles_update(nt, A, A2, hinge, doorstop, latch):
-    return nt + A2[hinge, latch] - A2[hinge,doorstop] #This isn't working for some reason and I don't know why
+    return nt + A2[hinge, latch] - A2[hinge,doorstop] + A[latch, doorstop]
 
 def number_of_possible_triangles_update(np, A, A2, hinge, doorstop, latch):
-    return np + sum(A[latch]) - (sum(A[doorstop]) - 1) #This isn't working for some reason and I don't know why
-    
+    return np + (sum(A[latch])-1) - sum(A[doorstop])
     
 def cluster_rewire_graph(A, 
                  percent_of_edges_to_rewire = 1, 
@@ -191,7 +201,10 @@ def cluster_rewire_graph(A,
                  rewire_function = one_move_find_best,
                  verbose = True,
                  verbose_count = 10,
-                 property_functions = [number_of_triangles, number_of_possible_triangles],
+                 property_functions = [(number_of_triangles, 
+                                        number_of_triangles_update),
+                                       (number_of_possible_triangles, 
+                                        number_of_possible_triangles_update)],
                  preserve_degrees = False):
     
     A2 = array(matrix(A)**2)
@@ -234,12 +247,10 @@ def cluster_rewire_graph(A,
                 if callable(prop_fun):
                     updated_property = prop_fun(A, A2)
                 else:
-                    prop_fun = prop_fun[1]
+                    prop_update_fun = prop_fun[1]
                     previous_property = properties[nth_property][-1]
-                    updated_property = prop_fun(previous_property, A, A2, hinge, doorstop, latch)
+                    updated_property = prop_update_fun(previous_property, A, A2, hinge, doorstop, latch)
                 properties[nth_property].append(updated_property)   
-        A = A_new
-        A2 = A2_new
     
     if verbose:
         print("Rewired %.1f percent of edges"%(100*float(k)/n_trials))
